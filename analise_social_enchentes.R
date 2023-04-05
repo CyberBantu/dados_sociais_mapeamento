@@ -4,6 +4,7 @@ library(geobr)
 library(readr)
 library(ggspatial)
 library(sf)
+library(ggrepel)
 
 # Preciso produzir um mapa por setor censitário ou bairros para o queimados e Jacarezinho
 # Raça, Coleta de Lxo, Esgotamentos Sanitario
@@ -48,19 +49,21 @@ queimados$code_tract = as.double(queimados$code_tract)
 # Juntando os dados para o mapa
 queimados_mapa = left_join(queimados, base, by="code_tract" )
 
-area_interesse <- st_bbox(queimados_mapa) + c(-0.2, 0.2, -0.2, 0.2)
+intervalos <- c(0, 20, 40, 60,80, 101)
+cores <- c("#f0f7da", "#c9df8a", "#77ab59", "#36802d", "#234d20")
+
+# Dividir a coluna "porcentagem_valas_rios" em categorias usando a função "cut"
+queimados_mapa$porcent_negros_int <- cut(queimados_mapa$porcent_negros, intervalos, include.lowest = TRUE,labels = c("0 a 25%", "25 a 50%", "50 a 75%", "75 a 100%"))
+
 
 # Plotando mapa
 ggplot() +
-  geom_sf(data = queimados_mapa, aes(geometry = geom, fill = porcent_negros)) +
-  labs(title = 'População Negra em Queimados por Setor Censitário no Municipio de Queimados',
+  geom_sf(data = queimados_mapa, aes(geometry = geom, fill = porcent_negros_int)) +
+  labs(title = 'População Negra por Setor Censitário no Municipio de Queimados',
        subtitle = 'Fonte - Censo 2010',
        caption = 'Elaborado por Christian Basilio') +
-  scale_fill_gradient(low = "white", high = "#ff003d", name = "% de Domicídios",
-                      guide = guide_colorbar(barwidth = 0.5,
-                                             barheight = 7.5,
-                                             title.position = "top",
-                                             title.hjust = 0.15)) +
+  scale_fill_manual(values = cores, name = "% de Domicídios",
+                    guide = guide_legend(title.position = "top", title.hjust = 0.5)) +
   annotation_scale(location = "br") +
   annotation_north_arrow(location = "br", which_north = "true", pad_x = unit(0.2, "cm"), pad_y = unit(1, "cm")) +
   xlab("Latitude") +
@@ -93,16 +96,22 @@ base_esgotamento = left_join(queimados, esgotamento, by = 'code_tract')
 
 
 # Plotando mapa de esgotamento Publico
+
+# selecionando novamente as cores
+intervalos <- c(0, 25, 50, 75, 101)
+cores <- c("#f0f7da", "#c9df8a", "#77ab59", "#234d20")
+
+base_esgotamento$pub_red_int <- cut(base_esgotamento$porcentagem_esgotamento_publica, intervalos, include.lowest = TRUE,labels = c("0 a 25%", "25 a 50%", "50 a 75%", "75 a 100%"))
+
+
+
 ggplot() +
-  geom_sf(data = base_esgotamento, aes(geometry = geom, fill = porcentagem_esgotamento_publica)) +
+  geom_sf(data = base_esgotamento, aes(geometry = geom, fill = pub_red_int)) +
   labs(title = 'Domicílios com esgotamento sanitário ligados a rede geral de esgoto por Setor Censitário no Municipio de Queimados',
        subtitle = 'Fonte - Censo 2010',
        caption = 'Elaborado por Christian Basilio') +
-  scale_fill_gradient(low = "white", high = "#ff003d", name = "% de Domicídios",
-                      guide = guide_colorbar(barwidth = 0.5,
-                                             barheight = 7.5,
-                                             title.position = "top",
-                                             title.hjust = 0.15)) +
+  scale_fill_manual(values = cores, name = "% de Domicídios",
+                    guide = guide_legend(title.position = "top", title.hjust = 0.5)) +
   annotation_scale(location = "br") +
   annotation_north_arrow(location = "br", which_north = "true", pad_x = unit(0.2, "cm"), pad_y = unit(1, "cm")) +
   xlab("Latitude") +
@@ -113,16 +122,18 @@ ggplot() +
         text = element_text(family = "Arial"))
 
 # Plot mapa de Esgotamento precario
+
+# fatores de esgotamento precario
+base_esgotamento$esg_precario <- cut(base_esgotamento$porcentagem_valas_rios, intervalos, include.lowest = TRUE,labels = c("0 a 25%", "25 a 50%", "50 a 75%", "75 a 100%"))
+
+
 ggplot() +
-  geom_sf(data = base_esgotamento, aes(geometry = geom, fill = porcentagem_valas_rios)) +
+  geom_sf(data = base_esgotamento, aes(geometry = geom, fill = esg_precario)) +
   labs(title = 'Domicílios com Esgotamento precário por Setor Censitário em Queimados',
        subtitle = 'Fonte - Censo 2010',
        caption = 'Elaborado por Christian Basilio') +
-  scale_fill_gradient(low = "white", high = "#ff003d", name = "% de Domicídios",
-                      guide = guide_colorbar(barwidth = 0.5,
-                                             barheight = 7.5,
-                                             title.position = "top",
-                                             title.hjust = 0.15)) +
+  scale_fill_manual(values = cores, name = "% de Domicídios",
+                    guide = guide_legend(title.position = "top", title.hjust = 0.5)) +
   annotation_scale(location = "br") +
   annotation_north_arrow(location = "br", which_north = "true", pad_x = unit(0.2, "cm"), pad_y = unit(1, "cm")) +
   xlab("Latitude") +
@@ -133,17 +144,15 @@ ggplot() +
         text = element_text(family = "Arial"))
 
 
-# Plotando a coleta de lixo
-ggplot() +
-  geom_sf(data = base_esgotamento, aes(geometry = geom, fill = porcentagem_coleta_lixo)) +
-  labs(title = 'Domicílios com Coleta de Lixo por Setor Censitário em Queimados',
+
+# regioes de queimados
+media_porcent_pop_valas_rios = base_esgotamento %>% group_by(name_subdistrict) %>% summarise(porcent = mean(porcentagem_valas_rios), total = sum(V020 + V021 + V022))
+
+ggplot(data = media_porcent_pop_valas_rios)+
+  geom_sf( aes(geometry = geom, fill = total))+
+  labs(title = 'Domicílios com Esgotamento precário por Região em Queimados',
        subtitle = 'Fonte - Censo 2010',
        caption = 'Elaborado por Christian Basilio') +
-  scale_fill_gradient(low = "white", high = "#ff003d", name = "% de Domicídios",
-                      guide = guide_colorbar(barwidth = 0.5,
-                                             barheight = 7.5,
-                                             title.position = "top",
-                                             title.hjust = 0.15)) +
   annotation_scale(location = "br") +
   annotation_north_arrow(location = "br", which_north = "true", pad_x = unit(0.2, "cm"), pad_y = unit(1, "cm")) +
   xlab("Latitude") +
@@ -153,3 +162,4 @@ ggplot() +
         plot.subtitle = element_text(hjust = 0.5, size = 10),
         text = element_text(family = "Arial"))
 
+#-----------------------------
